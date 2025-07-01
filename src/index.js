@@ -6,14 +6,34 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const custumers = [];
-
-/**
+/** Type
  * id - uuid
  * cpf - string
  * name - string
- * statement - Array<{}>
+ * statement - Array<{
+ *                     description - string,
+ *                     amount - number,
+ *                     created_at - Date,
+ *                     type - "credit" | "debit"
+ *                   }>
  */
+const custumers = [];
+
+// Middleware
+function verifyIfExistsAccountCPF(req, res, next) {
+  const { cpf } = req.headers;
+
+  const custumer = custumers.find((custumer) => custumer.cpf === cpf);
+
+  if (!custumer) {
+    return res.status(400).json({ error: "Custumer not found!" });
+  }
+
+  req.custumer = custumer;
+
+  return next();
+}
+
 app.post("/account", (req, res) => {
   try {
     const { cpf, name } = req.body;
@@ -39,16 +59,27 @@ app.post("/account", (req, res) => {
   }
 });
 
-app.get("/statement", (req, res) => {
-  const { cpf } = req.headers;
-
-  const custumer = custumers.find((custumer) => custumer.cpf === cpf);
-
-  if (!custumer) {
-    return res.status(404).json({ error: "Custumer not found!" });
-  }
+app.get("/statement", verifyIfExistsAccountCPF, (req, res) => {
+  const { custumer } = req;
 
   return res.status(200).json(custumer.statement);
+});
+
+app.post("/deposit", verifyIfExistsAccountCPF, (req, res) => {
+  const { description, amount } = req.body;
+
+  const { custumer } = req;
+
+  const statementOperation = {
+    description,
+    amount,
+    created_at: new Date(),
+    type: "credit",
+  };
+
+  custumer.statement.push(statementOperation);
+
+  return res.status(201).send();
 });
 
 app.listen(3333, () => {
